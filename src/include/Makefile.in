@@ -17,14 +17,15 @@ maybe-make-db.h-sys:
 maybe-make-db.h-redirect:
 	test -r db.h || echo '#include <@DB_HEADER@>' > db.h
 
-ET_HEADERS = adm_err.h asn1_err.h kdb5_err.h krb5_err.h k5e1_err.h
+ET_HEADERS = adm_err.h asn1_err.h dev_err.h kdb5_err.h krb5_err.h k5e1_err.h
 K5_ET_HEADERS = \
 	../lib/krb5/error_tables/krb5_err.h \
 	../lib/krb5/error_tables/k5e1_err.h \
 	../lib/krb5/error_tables/kdb5_err.h \
 	../lib/krb5/error_tables/kv5m_err.h \
 	../lib/krb5/error_tables/krb524_err.h \
-	../lib/krb5/error_tables/asn1_err.h
+	../lib/krb5/error_tables/asn1_err.h \
+        ../lib/krb5/error_tables/dev_err.h
 BUILT_HEADERS = osconf.h
 
 all-unix:: autoconf.h $(BUILT_HEADERS)
@@ -117,7 +118,7 @@ force:
 
 clean-unix::
 	$(RM) krb5/krb5.h krb5_err.h k5e1_err.h kdb5_err.h kv5m_err.h \
-		krb524_err.h asn1_err.h private-and-public-decls krb5.stamp
+		krb524_err.h asn1_err.h dev_err.h private-and-public-decls krb5.stamp
 	$(RM) $(ET_HEADERS) autoconf.stamp
 
 clean-windows::

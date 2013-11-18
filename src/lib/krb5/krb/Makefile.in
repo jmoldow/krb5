@@ -53,6 +53,7 @@ STLIBOBJS= \
 	gen_save_subkey.o	\
 	get_creds.o	\
 	get_in_tkt.o	\
+	gic_dev.o       \
 	gic_keytab.o	\
 	gic_opt.o	\
 	gic_pwd.o	\
@@ -158,6 +159,7 @@ OBJS=	$(OUTPRE)addr_comp.$(OBJEXT)	\
 	$(OUTPRE)gen_save_subkey.$(OBJEXT)	\
 	$(OUTPRE)get_creds.$(OBJEXT)	\
 	$(OUTPRE)get_in_tkt.$(OBJEXT)	\
+	$(OUTPRE)gic_dev.$(OBJEXT)      \
 	$(OUTPRE)gic_keytab.$(OBJEXT)	\
 	$(OUTPRE)gic_opt.$(OBJEXT)	\
 	$(OUTPRE)gic_pwd.$(OBJEXT)	\
@@ -263,6 +265,7 @@ SRCS=	$(srcdir)/addr_comp.c	\
 	$(srcdir)/gen_save_subkey.c	\
 	$(srcdir)/get_creds.c	\
 	$(srcdir)/get_in_tkt.c	\
+	$(srcdir)/gic_dev.c     \
 	$(srcdir)/gic_keytab.c	\
 	$(srcdir)/gic_opt.c	\
 	$(srcdir)/gic_pwd.c	\
