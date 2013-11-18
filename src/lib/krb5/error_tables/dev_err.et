@@ -1,0 +1,3 @@
+error_table dev
+error_code DEV_NO_DEVICE, "No device connected for credential delegation"
+end
