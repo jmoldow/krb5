@@ -25,7 +25,6 @@ testlog
 
 /src/config.log
 /src/config.status
-/src/configure
 /src/krb5-config
 /src/pyrunenv.vals
 /src/runenv.py
@@ -47,6 +46,8 @@ testlog
 /src/build-tools/krb5-config
 
 /src/clients/kdestroy/kdestroy
+
+/src/clients/kcpytkt/kcpytkt
 
 /src/clients/kinit/kinit
 

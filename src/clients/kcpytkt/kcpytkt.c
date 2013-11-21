@@ -7,6 +7,7 @@
 #endif
 #include <string.h>
 #include <krb5.h>
+#include <getopt.h>
 
 extern int optind;
 extern char *optarg;
