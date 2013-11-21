@@ -25,6 +25,7 @@ testlog
 
 /src/config.log
 /src/config.status
+/src/configure
 /src/krb5-config
 /src/pyrunenv.vals
 /src/runenv.py
