@@ -18,6 +18,10 @@ testlog
 
 /doc/html/
 /doc/pdf/
+/doc/*.pdf
+/doc/*.ps
+/doc/*.html
+/doc/*.info
 
 /src/config.log
 /src/config.status
