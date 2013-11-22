@@ -158,7 +158,7 @@ static void do_kcpytkt (int count, char *names[],
         krb5_free_principal(context, in_creds.server);
 
         if (ret) {
-            fprintf(stderr, "%s: %s while removing credentials\n",
+            fprintf(stderr, "%s: %s while copying credentials\n",
                     princ, error_message(ret));
 
             krb5_free_cred_contents(context, &out_creds);
