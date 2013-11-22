@@ -50,6 +50,8 @@ testlog
 
 /src/clients/kcpytkt/kcpytkt
 
+/src/clients/kdeltkt/kdeltkt
+
 /src/clients/kinit/kinit
 
 /src/clients/klist/klist
