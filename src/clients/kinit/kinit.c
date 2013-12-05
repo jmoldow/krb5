@@ -125,6 +125,8 @@ struct k_opts
 
     int canonicalize;
     int enterprise;
+
+    int agent;
 };
 
 struct k5_data
@@ -151,6 +153,7 @@ struct option long_options[] = {
     { "noaddresses", 0, NULL, 'A' },
     { "canonicalize", 0, NULL, 'C' },
     { "enterprise", 0, NULL, 'E' },
+    { "agent", 0, NULL, 'g'},
     { NULL, 0, NULL, 0 }
 };
 
@@ -227,6 +230,7 @@ usage()
     fprintf(stderr, _("\t-S service\n"));
     fprintf(stderr, _("\t-T armor credential cache\n"));
     fprintf(stderr, _("\t-X <attribute>[=<value>]\n"));
+    fprintf(stderr, _("\t-g init for agent, i.e., do not get creds\n"));
     exit(2);
 }
 
@@ -283,7 +287,7 @@ parse_options(argc, argv, opts)
     int errflg = 0;
     int i;
 
-    while ((i = GETOPT(argc, argv, "r:fpFPn54aAVl:s:c:kt:T:RS:vX:CE"))
+    while ((i = GETOPT(argc, argv, "r:fpFPn54aAVl:s:c:kt:T:RS:vX:CEg"))
            != -1) {
         switch (i) {
         case 'V':
@@ -395,6 +399,9 @@ parse_options(argc, argv, opts)
             exit(3);
             break;
         case '5':
+            break;
+        case 'g':
+            opts->agent = 1;
             break;
         default:
             errflg++;
@@ -840,15 +847,19 @@ main(argc, argv)
 
     parse_options(argc, argv, &opts);
 
-    if (k5_begin(&opts, &k5))
-        authed_k5 = k5_kinit(&opts, &k5);
+    if (k5_begin(&opts, &k5)) {
+        if (opts.agent)
+            krb5_cc_initialize(k5.ctx, k5.cc, k5.me);
+        else
+            authed_k5 = k5_kinit(&opts, &k5);
+    }
 
     if (authed_k5 && opts.verbose)
         fprintf(stderr, _("Authenticated to Kerberos v5\n"));
 
     k5_end(&k5);
 
-    if (!authed_k5)
+    if (!authed_k5 && opts.agent == 0)
         exit(1);
     return 0;
 }
