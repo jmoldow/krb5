@@ -7,7 +7,7 @@
 int main(int argc, char *argv[])
 {
     krb5_context context;
-    krb5_ccache ccache, dummy;
+    krb5_ccache ccache;
     krb5_creds in_creds, out_creds;
 
     if (argc < 3) {
@@ -29,10 +29,10 @@ int main(int argc, char *argv[])
     CHECK(krb5_cc_close(context, ccache));
 
     // Write the ticket out to a file.
-    CHECK(krb5_cc_resolve(context, out_file, &dummy));
-    CHECK(krb5_cc_initialize(context, dummy, in_creds.client));
-    CHECK(krb5_cc_store_cred(context, dummy, &out_creds));
-    CHECK(krb5_cc_close(context, dummy));
+    CHECK(krb5_cc_resolve(context, out_file, &ccache));
+    CHECK(krb5_cc_initialize(context, ccache, in_creds.client));
+    CHECK(krb5_cc_store_cred(context, ccache, &out_creds));
+    CHECK(krb5_cc_close(context, ccache));
 
     // Clean up and exit.
     krb5_free_principal(context, in_creds.client);
