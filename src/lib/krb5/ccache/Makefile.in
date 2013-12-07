@@ -32,6 +32,7 @@ STLIBOBJS= \
 	cc_file.o \
 	cc_memory.o \
 	cc_keyring.o \
+	cc_remote.o \
 	ccfns.o \
 	ser_cc.o
 
@@ -48,6 +49,7 @@ OBJS=	$(OUTPRE)ccbase.$(OBJEXT) \
 	$(OUTPRE)cc_file.$(OBJEXT) \
 	$(OUTPRE)cc_memory.$(OBJEXT) \
 	$(OUTPRE)cc_keyring.$(OBJEXT) \
+	$(OUTPRE)cc_remote.$(OBJEXT) \
 	$(OUTPRE)ccfns.$(OBJEXT) \
 	$(OUTPRE)ser_cc.$(OBJEXT) $(MSLSA_OBJ)
 
@@ -64,6 +66,7 @@ SRCS=	$(srcdir)/ccbase.c \
 	$(srcdir)/cc_file.c \
 	$(srcdir)/cc_memory.c \
 	$(srcdir)/cc_keyring.c \
+	$(srcdir)/cc_remote.c \
 	$(srcdir)/ccfns.c \
 	$(srcdir)/ser_cc.c $(MSLSA_SRC)
 
