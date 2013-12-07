@@ -66,7 +66,15 @@ static struct krb5_cc_typelist cc_mcc_entry = { &krb5_mcc_ops, NEXT };
 static struct krb5_cc_typelist cc_fcc_entry = { &krb5_cc_file_ops, NEXT };
 #undef NEXT
 #define NEXT &cc_fcc_entry
-#endif
+
+#ifndef NO_REMOTE_CCACHE
+extern const krb5_cc_ops krb5_rcc_ops;
+static struct krb5_cc_typelist cc_rcc_entry = { &krb5_rcc_ops, NEXT };
+#undef NEXT
+#define NEXT &cc_rcc_entry
+#endif /* not NO_REMOTE_CCACHE */
+
+#endif /* not NO_FILE_CCACHE */
 
 #ifdef USE_KEYRING_CCACHE
 extern const krb5_cc_ops krb5_krcc_ops;
