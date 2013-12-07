@@ -1,0 +1,1 @@
+gcc -lkrb5 -lk5crypto -lcom_err -o kserialize kserialize.c

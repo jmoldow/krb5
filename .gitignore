@@ -15,6 +15,7 @@ testdir/
 testlog
 
 /util/kshow/kshow
+/util/kserialize/kserialize
 
 /doc/version.py
 
