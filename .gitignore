@@ -16,6 +16,7 @@ testlog
 
 /util/kshow/kshow
 /util/kserialize/kserialize
+/util/kunserialize/kunserialize
 
 /doc/version.py
 

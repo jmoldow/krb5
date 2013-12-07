@@ -1,1 +1,3 @@
-gcc -lkrb5 -lk5crypto -lcom_err -o kserialize kserialize.c
+for name in kserialize kunserialize; do
+    gcc -lkrb5 -lk5crypto -lcom_err -o $name $name.c
+done
