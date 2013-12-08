@@ -27,6 +27,9 @@
 #include "k5-int.h"
 #include "cc-int.h"
 
+#include <sys/socket.h>
+#include <sys/types.h>
+
 #if HAVE_UNISTD_H
 #include <unistd.h>
 #endif
@@ -220,11 +223,119 @@ static krb5_error_code KRB5_CALLCONV
 rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
              krb5_creds *mcreds, krb5_creds *creds)
 {
-    /* TODO implement remote socket */
-    rcc_data *data = cache->data;
+#define CHECK(EXPR) if(ret = EXPR) goto cleanup;
+#define CHECK_LT0(EXPR) if((ret = EXPR) < 0) goto cleanup;
 
-    return krb5_fcc_ops.retrieve(context, data->fcc, flags, mcreds,
-                                 creds);
+    rcc_data *data = cache->data;
+    char *host_name;
+    char *port;
+    char msg_buf[1024];
+    char len_buf[128];
+    struct hostent *host;
+    struct sockaddr_in sock_addr;
+    int sock, ret, index, len;
+    char *newline;
+    char tmpname[L_tmpnam];
+    FILE *tmp = NULL;
+
+    krb5_ccache tcc;
+    krb5_creds tkt;
+    krb5_cc_cursor cursor;
+
+    // Attempt file retrieve
+    ret = krb5_fcc_ops.retrieve(context, data->fcc, flags, mcreds, creds);
+    if (!ret)
+        return ret;
+
+    // Socket retrieve
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0)
+    {
+        ret = -1;
+        goto cleanup;
+    }
+
+    // Copy and split the hostname into host and port
+    host_name = strdup(data->residual);
+    port = strchr(host_name, ':');
+    *port = 0;
+    port += 1;
+
+    host = gethostbyname(host_name);
+    memcpy(&sock_addr.sin_addr, host->h_addr_list[0], host->h_length);
+    sock_addr.sin_family = AF_INET;
+    sock_addr.sin_port = htons(atoi(port));
+    
+    printf("rcc_retrieve: Connecting to %s:%d\n", host_name, atoi(port));
+    CHECK(connect(sock, (struct sockaddr *)&sock_addr, sizeof(sock_addr)));
+
+    // Talk to the agent
+    // TODO: Get the service name
+    snprintf(msg_buf, 1024, "ticket %s\n", "serviceA");
+    snprintf(len_buf, 128, "%d\n", strlen(msg_buf));
+    CHECK_LT0(send(sock, len_buf, strlen(len_buf), 0));
+    CHECK_LT0(send(sock, msg_buf, strlen(msg_buf), 0));
+    // Iterate and fill buf until we reach a newline
+    index = 0;
+    msg_buf[0] = 0;
+    while (index != 1024 && (newline = strchr(msg_buf, '\n')) == NULL)
+    {
+        ret = recv(sock, msg_buf[index], 1024-index, 0);
+        if (ret <= 0)
+        {
+            ret = -1;
+            goto cleanup;
+        }
+        index += ret;
+    }
+    if (!newline)
+    {
+        ret = -1;
+        goto cleanup;
+    }
+    *newline = 0;
+    newline += 1;
+    len = atoi(msg_buf);
+
+    // Stream the socket data into a file. This file will be formatted
+    // as a ccache file with exactly one ticket -- the one requested
+    tmpnam(tmpname);
+    tmp = fopen(tmpname, "w");
+    CHECK_LT0(fputs(newline, tmp));
+    len -= strlen(newline);
+    while (len > 0)
+    {
+        ret = recv(sock, msg_buf, 1024, 0);
+        if (ret <= 0)
+        {
+            ret = -1;
+            goto cleanup;
+        }
+        ret = fputs(msg_buf, tmp);
+        if (ret < 0)
+            goto cleanup;
+        len -= strlen(newline);
+    }
+    fclose(tmp);
+    tmp = NULL;
+
+    // Move the ticket from the tmp ccache into tkt
+    CHECK(krb5_cc_resolve(context, tmpname, &tcc));
+    CHECK(krb5_cc_start_seq_get(context, tcc, &cursor));
+    CHECK(krb5_cc_next_cred(context, tcc, &cursor, &tkt));
+    CHECK(krb5_cc_end_seq_get(context, tcc, &cursor));
+    CHECK(krb5_cc_close(context, tcc));
+    // Save the ticket into the fcc
+    CHECK(krb5_fcc_ops.store(context, data->fcc, &tkt));
+
+    // Perform a file retrieve as usual
+    ret = krb5_fcc_ops.retrieve(context, data->fcc, flags, mcreds, creds);
+
+cleanup:
+    if (tmp)
+        fclose(tmp);
+    close(sock);
+    return ret;
 }
 
 static krb5_error_code KRB5_CALLCONV
