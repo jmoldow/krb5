@@ -228,6 +228,9 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
     // Copy and split the hostname into host and port
     host_name = strdup(data->residual);
     port = strchr(host_name, ':');
+    if (!port)
+        // No port provided. Should we allow a default port?
+        return -1;
     *port = 0;
     port += 1;
 
