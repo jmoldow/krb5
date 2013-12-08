@@ -59,9 +59,8 @@ try:
                 if status == 0:
                     ## For testing, change this line to point to
                     ## your compiled kcpytkt
-                    ## os.system("kcpytkt -c "+cache_location+" "+ \
-                    ##              "/tmp/service_ticket "+server_principal)
-                    os.system("../install/usr/local/bin/kcpytkt -c "+cache_location+" "+ \
+                    os.system("kcpytkt -c "+cache_location+" "+ \
+                                  "/tmp/service_ticket "+server_principal)
                                  "/tmp/service_ticket "+server_principal)
 
                     f = open("/tmp/service_ticket", 'r')
