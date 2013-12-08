@@ -1,6 +1,9 @@
 #include "k5-int.h"
 #include "cc-int.h"
 
+#include <sys/socket.h>
+#include <sys/types.h>
+
 #if HAVE_UNISTD_H
 #include <unistd.h>
 #endif
@@ -15,9 +18,16 @@ extern const krb5_cc_ops krb5_fcc_ops;
 
 /* Fields are not modified after creation, so no lock is necessary. */
 typedef struct rcc_data_st {
-    char *residual;             /* dirname or :filename */
+    char *residual;             /* network socket's host:port */
+    char *host_name;            /* network socket host */
+    int port;                   /* network socket port */
     krb5_ccache fcc;            /* File cache for actual cache ops */
 } rcc_data;
+
+static krb5_error_code KRB5_CALLCONV
+rcc_socket_parse(char const *residual, char **host_name, int *port);
+static krb5_error_code KRB5_CALLCONV
+rcc_socket_connect(krb5_ccache cache);
 
 /* Verify that the remote exists as a socket. */
 static krb5_error_code
@@ -57,6 +67,8 @@ make_cache(const char *residual, krb5_ccache fcc, krb5_ccache *cache_out)
     krb5_ccache cache = NULL;
     rcc_data *data = NULL;
     char *residual_copy = NULL;
+    char *host_name_copy = NULL;
+    int port_copy = 0;
 
     cache = malloc(sizeof(*cache));
     if (cache == NULL)
@@ -68,7 +80,12 @@ make_cache(const char *residual, krb5_ccache fcc, krb5_ccache *cache_out)
     if (residual_copy == NULL)
         goto oom;
 
+    if (rcc_socket_parse(residual_copy, &host_name_copy, &port_copy))
+        goto oom;
+
     data->residual = residual_copy;
+    data->host_name = host_name_copy;
+    data->port = port_copy;
     data->fcc = fcc;
     cache->ops = &krb5_rcc_ops;
     cache->data = data;
@@ -183,15 +200,183 @@ rcc_store(krb5_context context, krb5_ccache cache, krb5_creds *creds)
     return krb5_fcc_ops.store(context, data->fcc, creds);
 }
 
+/*
+ * rcc_socket_parse - Parses a host_name:port residual
+ *
+ * residual: a host_name:port string, specified on the command line with
+ * REMOTE:host_name:port
+ *
+ * host_name: a string pointer that, on successful return, will hold the host_name string
+ *
+ * port: an integer pointer that, on successful return, will hold the port
+ *
+ * Returns 0 on success, and -1 on failure.
+ */
+static krb5_error_code KRB5_CALLCONV
+rcc_socket_parse(char const *residual, char **host_name, int *port)
+{
+    char *host_name_copy;
+    char *port_str;
+    long int port_copy;
+    char *endptr;
+
+    char *colon = strchr(residual, ':');
+    if (!colon)
+    {
+        // No port provided. Should we allow a default port?
+        return -1;
+    }
+
+    // Copy and split the residual into host and port
+    host_name_copy = strndup(residual, (colon - residual));
+    if (!host_name_copy)
+        goto cleanup;
+    port_str = colon + 1;
+    port_copy = strtol(port_str, &endptr, 10);
+    if (!port_copy || *endptr)
+    {
+        // Parsing the port number failed, either because
+        // there are no numbers after the colon (!port_copy) or because
+        // the port number does not end the string (*endptr != '\0').
+        goto cleanup;
+    }
+
+    // Succeeded at parsing, overwrite pointers.
+    *host_name = host_name_copy;
+    *port = (int)port_copy;
+    return 0;
+
+cleanup:
+    free(host_name_copy);
+    return -1;
+}
+
+/*
+ * rcc_socket_connect - Connects to this remote ccache's network socket
+ *
+ * Returns the socket file descriptor on success, or -1 on error.
+ */
+static krb5_error_code KRB5_CALLCONV
+rcc_socket_connect(krb5_ccache cache)
+{
+    int sock;
+    struct hostent *host;
+    struct sockaddr_in sock_addr;
+    rcc_data *data = cache->data;
+
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0)
+        return -1;
+
+    host = gethostbyname(data->host_name);
+    memcpy(&sock_addr.sin_addr, host->h_addr_list[0], host->h_length);
+    sock_addr.sin_family = AF_INET;
+    sock_addr.sin_port = htons(data->port);
+
+    printf("rcc_socket_connect: Connecting to %s\n", data->residual);
+    if (connect(sock, (struct sockaddr *)&sock_addr, sizeof(sock_addr)))
+        return -1;
+
+    return sock;
+}
+
 static krb5_error_code KRB5_CALLCONV
 rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
              krb5_creds *mcreds, krb5_creds *creds)
 {
-    /* TODO implement remote socket */
-    rcc_data *data = cache->data;
+#define CHECK(EXPR) if((ret = (EXPR))) goto cleanup;
+#define CHECK_LT0(EXPR) if((ret = (EXPR)) < 0) goto cleanup;
 
-    return krb5_fcc_ops.retrieve(context, data->fcc, flags, mcreds,
-                                 creds);
+    rcc_data *data = cache->data;
+    char msg_buf[1024];
+    char len_buf[128];
+    struct hostent *host;
+    struct sockaddr_in sock_addr;
+    int sock, ret, i, len;
+    char *newline;
+    char tmpname[24] = "/tmp/rcc_retrieveXXXXXX";
+    int tmp_fd;
+    FILE *tmp = NULL;
+
+    krb5_ccache tcc;
+    krb5_creds tkt;
+    krb5_cc_cursor cursor;
+
+    // Attempt file retrieve
+    ret = krb5_fcc_ops.retrieve(context, data->fcc, flags, mcreds, creds);
+    if (!ret)
+        return ret;
+
+    if ((sock = rcc_socket_connect(cache)) < 0)
+        goto cleanup;
+
+    // Talk to the agent
+    // TODO: Get the service name
+    snprintf(msg_buf, 1024, "ticket\n%s\n", "serviceA");
+    snprintf(len_buf, 128, "%zd\n", strlen(msg_buf));
+    CHECK_LT0(send(sock, len_buf, strlen(len_buf), 0));
+    CHECK_LT0(send(sock, msg_buf, strlen(msg_buf), 0));
+    // Iterate and fill buf until we reach a newline
+    i = 0;
+    msg_buf[0] = 0;
+    while (i != 1024 && (newline = strchr(msg_buf, '\n')) == NULL)
+    {
+        ret = recv(sock, (void*)(msg_buf+i), 1024-i, 0);
+        if (ret <= 0)
+        {
+            ret = -1;
+            goto cleanup;
+        }
+        i += ret;
+    }
+    if (!newline)
+    {
+        ret = -1;
+        goto cleanup;
+    }
+    *newline = 0;
+    newline += 1;
+    len = atoi(msg_buf);
+
+    // Stream the socket data into a file. This file will be formatted
+    // as a ccache file with exactly one ticket -- the one requested
+    tmp_fd = mkstemp(tmpname);
+    tmp = fdopen(tmp_fd, "w");
+    CHECK_LT0(fputs(newline, tmp));
+    len -= strlen(newline);
+    while (len > 0)
+    {
+        ret = recv(sock, msg_buf, 1024, 0);
+        if (ret <= 0)
+        {
+            ret = -1;
+            goto cleanup;
+        }
+        ret = fputs(msg_buf, tmp);
+        if (ret < 0)
+            goto cleanup;
+        len -= strlen(newline);
+    }
+    fclose(tmp);
+    tmp = NULL;
+
+    // Move the ticket from the tmp ccache into tkt
+    CHECK(krb5_cc_resolve(context, tmpname, &tcc));
+    CHECK(krb5_cc_start_seq_get(context, tcc, &cursor));
+    CHECK(krb5_cc_next_cred(context, tcc, &cursor, &tkt));
+    CHECK(krb5_cc_end_seq_get(context, tcc, &cursor));
+    CHECK(krb5_cc_close(context, tcc));
+    // Save the ticket into the fcc
+    CHECK(krb5_fcc_ops.store(context, data->fcc, &tkt));
+
+    // Perform a file retrieve as usual
+    ret = krb5_fcc_ops.retrieve(context, data->fcc, flags, mcreds, creds);
+
+cleanup:
+    if (tmp)
+        fclose(tmp);
+    close(sock);
+    return ret;
 }
 
 static krb5_error_code KRB5_CALLCONV
