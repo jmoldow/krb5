@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # Basic starting code for the agent
 # Set up for testing, doesn't handle errors well yet
 
