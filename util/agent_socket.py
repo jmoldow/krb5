@@ -1,17 +1,11 @@
 #!/usr/bin/env python2.7
 
-# Basic starting code for the agent
-# Set up for testing, doesn't handle errors well yet
+# Still needs better error handling in the main loop.
 
-import os, os.path
-import socket
+import os, socket
 
-# for testing/demo, can make this an argument later
-sock_path = ""
-sock_port = 8001
-uid = os.getuid()
-# can implement setting a different location later if we care
-cache_location = "/tmp/krb5cc_agent_"+str(uid)
+port = 8001
+cache_location = "/tmp/krb5cc_agent_{0}".format(os.getuid())
 service_ticket_location = "/tmp/service_ticket"
 
 sock = socket.socket()
@@ -40,53 +34,38 @@ def get_full_msg(conn):
             length -= len(msg)
     return (full_msg, length)
 
-def kinit(principal):
-    return os.system("kinit -c "+cache_location+" "+principal)
+def do_kinit(client_principal):
+    return os.system("kinit -c {0} {1}".format(cache_location, client_principal))
 
-def get_tkt(server_principal):
-    command = "kvno -c "+cache_location+" "+server_principal
-    print command
-    return os.system(command)
-
+def do_ticket(server_principal):
+    return os.system("kvno -c {0} {1}".format(cache_location, server_principal))
 
 try:
-    sock.bind((sock_path, sock_port))
+    sock.bind(('', port))
     sock.listen(0)
     while True:
         conn, addr = sock.accept()
-
-        # read and assemble the message
+        print("Received socket connection from {0}".format(addr))
         full_msg, length = get_full_msg(conn)
         cmd, arg = full_msg.split('\n', 1)
-        
+        print("Message decoded: {0} {1}".format(cmd, arg))
         if cmd == "kinit":
-            principal = arg
-            creds = kinit(principal)
-            if creds == 0:
+            if do_kinit(arg) == 0:
+                print("kinit successful")
                 conn.send("OK")
             else:
+                print("kinit failed")
                 conn.send("FAIL")
         elif cmd == "ticket":
-            server_principal = arg
-            status = get_tkt(server_principal)
-            if status == 0:
-                if os.path.isfile(service_ticket_location):
-                    os.remove(service_ticket_location)
-                kserialize_cmd = "kserialize "+cache_location+" "+ \
-                    server_principal+" "+service_ticket_location
-                print kserialize_cmd
-                os.system(kserialize_cmd)
-
-                f = open(service_ticket_location, 'r')
-                tkt = f.read()
-                print "Sending ticket: %d, %s" % (len(tkt), tkt)
-                conn.send("%d\n%s" % (len(tkt), tkt))
+            if do_ticket(arg) == 0:
+                os.system("kserialize {0} {1} {2}".format(cache_location, arg,
+                                                          service_ticket_location))
+                tkt = open(service_ticket_location, 'r').read()
+                print("Sending ticket: {0} {1}".format(len(tkt), tkt))
+                conn.send("{0}\n{1}".format(len(tkt), tkt))
             else:
-                print "FAIL"
+                print("Ticket request failed")
                 conn.send("FAIL")
 except (IOError, KeyboardInterrupt) as e:
     sock.close()
     exit()
-            
-    
-
