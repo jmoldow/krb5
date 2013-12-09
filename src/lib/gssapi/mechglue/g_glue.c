@@ -375,7 +375,8 @@ gss_name_t	*internal_name;
 					  union_name->mech_name,
 					  internal_name);
 	if (status != GSS_S_UNAVAILABLE) {
-	    map_error(minor_status, mech);
+	    if (status != GSS_S_COMPLETE)
+		map_error(minor_status, mech);
 	    return (status);
 	}
     }
@@ -471,7 +472,7 @@ OM_uint32 gssint_export_internal_name(minor_status, mech_type,
 	mechOidTagLen + mechOidDERLen +
 	mech_type->length +
 	nameLenLen + dispName.length;
-    if ((name_buf->value = (void*)malloc(name_buf->length)) ==
+    if ((name_buf->value = (void*)gssalloc_malloc(name_buf->length)) ==
 	(void*)NULL) {
 	name_buf->length = 0;
 	(void) gss_release_buffer(&status, &dispName);

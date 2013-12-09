@@ -110,7 +110,6 @@
 #define INI_KRB_CCACHE  "krb5cc"        /* Location of the ccache */
 #define INI_KRB5_CONF   "krb5.ini"      /* Location of krb5.conf file */
 #define ANSI_STDIO
-#define DISABLE_TRACING
 #endif
 
 #include "autoconf.h"
@@ -2388,6 +2387,9 @@ typedef struct _krb5_donot_replay {
     krb5_int32 cusec;
     krb5_timestamp ctime;
 } krb5_donot_replay;
+
+krb5_error_code KRB5_CALLCONV
+krb5int_cc_user_set_default_name(krb5_context context, const char *name);
 
 krb5_error_code krb5_rc_default(krb5_context, krb5_rcache *);
 krb5_error_code krb5_rc_resolve_type(krb5_context, krb5_rcache *,char *);

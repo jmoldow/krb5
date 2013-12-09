@@ -202,7 +202,7 @@ AC_MSG_RESULT("pkinit will use \'$withval\'")
 ], withval=$PKINIT_CRYPTO_IMPL)
 case "$withval" in
 builtin|openssl)
-  AC_CHECK_LIB(crypto, PKCS7_get_signer_info)
+  AC_CHECK_LIB(crypto, PKCS7_get_signer_info, PKINIT_CRYPTO_IMPL_LIBS=-lcrypto)
   PKINIT_CRYPTO_IMPL=openssl
   ;;
 nss)
@@ -263,7 +263,7 @@ AC_CONFIG_HEADERS(include/autoconf.h, [echo timestamp > include/autoconf.stamp])
 AC_PROG_LEX
 AC_C_CONST
 AC_HEADER_DIRENT
-AC_CHECK_FUNCS(strdup setvbuf seteuid setresuid setreuid setegid setresgid setregid setsid flock fchmod chmod strftime strptime geteuid setenv unsetenv getenv gmtime_r localtime_r bswap16 bswap64 mkstemp getusershell access getcwd srand48 srand srandom stat strchr strerror strerror_r timegm)
+AC_CHECK_FUNCS(strdup setvbuf seteuid setresuid setreuid setegid setresgid setregid setsid flock fchmod chmod strftime strptime geteuid setenv unsetenv getenv gmtime_r localtime_r bswap16 bswap64 mkstemp getusershell access getcwd srand48 srand srandom stat strchr strerror strerror_r timegm isblank)
 
 AC_CHECK_FUNC(mkstemp,
 [MKSTEMP_ST_OBJ=
@@ -1239,6 +1239,12 @@ fi
 AC_SUBST([VERTO_CFLAGS])
 AC_SUBST([VERTO_LIBS])
 AC_SUBST([VERTO_VERSION])
+
+# Make localedir work in autoconf 2.5x.
+if test "${localedir+set}" != set; then
+    localedir='$(datadir)/locale'
+fi
+AC_SUBST(localedir)
 
 AC_CONFIG_FILES(krb5-config, [chmod +x krb5-config])
 V5_AC_OUTPUT_MAKEFILE(.

@@ -281,6 +281,7 @@ krb5_preauth_request_context_init(krb5_context context)
     if (context->preauth_context == NULL)
         return;
     for (i = 0; i < context->preauth_context->n_modules; i++) {
+        context->preauth_context->modules[i].use_count = 0;
         mod = &context->preauth_context->modules[i];
         if (mod->client_req_init != NULL)
             mod->client_req_init(context, mod->moddata, mod->modreq_p);
@@ -547,7 +548,7 @@ pa_salt(krb5_context context, krb5_kdc_req *request, krb5_pa_data *in_padata,
 
     tmp = padata2data(*in_padata);
     krb5_free_data_contents(context, salt);
-    retval = krb5int_copy_data_contents(context, &tmp, salt);
+    retval = krb5int_copy_data_contents_add0(context, &tmp, salt);
     if (retval)
         return retval;
 
