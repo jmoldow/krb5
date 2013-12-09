@@ -298,12 +298,9 @@ rcc_socket_connect(krb5_ccache cache)
     struct sockaddr_in sock_addr;
     rcc_data *data = cache->data;
 
-    // Socket retrieve
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0)
-    {
         return -1;
-    }
 
     host = gethostbyname(data->host_name);
     memcpy(&sock_addr.sin_addr, host->h_addr_list[0], host->h_length);
