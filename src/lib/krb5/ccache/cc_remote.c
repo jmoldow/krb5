@@ -18,9 +18,14 @@ extern const krb5_cc_ops krb5_fcc_ops;
 
 /* Fields are not modified after creation, so no lock is necessary. */
 typedef struct rcc_data_st {
-    char *residual;             /* dirname or :filename */
+    char *residual;             /* network socket's host:port */
+    char *host_name;            /* network socket host */
+    int port;                   /* network socket port */
     krb5_ccache fcc;            /* File cache for actual cache ops */
 } rcc_data;
+
+static krb5_error_code KRB5_CALLCONV
+rcc_socket_parse(char const *residual, char **host_name, int *port);
 
 /* Verify that the remote exists as a socket. */
 static krb5_error_code
@@ -61,6 +66,8 @@ make_cache(const char *residual, krb5_ccache fcc, krb5_ccache *cache_out)
     krb5_ccache cache = NULL;
     rcc_data *data = NULL;
     char *residual_copy = NULL;
+    char *host_name_copy = NULL;
+    int port_copy = 0;
 
     cache = malloc(sizeof(*cache));
     if (cache == NULL)
@@ -72,7 +79,12 @@ make_cache(const char *residual, krb5_ccache fcc, krb5_ccache *cache_out)
     if (residual_copy == NULL)
         goto oom;
 
+    if (rcc_socket_parse(residual_copy, &host_name_copy, &port_copy))
+        goto oom;
+
     data->residual = residual_copy;
+    data->host_name = host_name_copy;
+    data->port = port_copy;
     data->fcc = fcc;
     cache->ops = &krb5_rcc_ops;
     cache->data = data;
@@ -189,6 +201,57 @@ rcc_store(krb5_context context, krb5_ccache cache, krb5_creds *creds)
     return krb5_fcc_ops.store(context, data->fcc, creds);
 }
 
+/*
+ * rcc_socket_parse - Parses a host_name:port residual
+ *
+ * residual: a host_name:port string, specified on the command line with
+ * REMOTE:host_name:port
+ *
+ * host_name: a string pointer that, on successful return, will hold the host_name string
+ *
+ * port: an integer pointer that, on successful return, will hold the port
+ *
+ * Returns 0 on success, and -1 on failure.
+ */
+static krb5_error_code KRB5_CALLCONV
+rcc_socket_parse(char const *residual, char **host_name, int *port)
+{
+    char *host_name_copy;
+    char *port_str;
+    long int port_copy;
+    char *endptr;
+
+    char *colon = strchr(residual, ':');
+    if (!colon)
+    {
+        // No port provided. Should we allow a default port?
+        return -1;
+    }
+
+    // Copy and split the residual into host and port
+    host_name_copy = strndup(residual, (colon - residual));
+    if (!host_name_copy)
+        goto cleanup;
+    port_str = colon + 1;
+    port_copy = strtol(port_str, &endptr, 10);
+    if (!port_copy || *endptr)
+    {
+        // Parsing the port number failed, either because
+        // there are no numbers after the colon (!port_copy) or because
+        // the port number does not end the string (*endptr != '\0').
+        goto cleanup;
+    }
+
+    // Succeeded at parsing, overwrite pointers.
+    *host_name = host_name_copy;
+    *port = (int)port_copy;
+    return 0;
+
+cleanup:
+    free(host_name_copy);
+    return -1;
+}
+
 static krb5_error_code KRB5_CALLCONV
 rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
              krb5_creds *mcreds, krb5_creds *creds)
@@ -197,8 +260,6 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
 #define CHECK_LT0(EXPR) if((ret = EXPR) < 0) goto cleanup;
 
     rcc_data *data = cache->data;
-    char *host_name;
-    char *port;
     char msg_buf[1024];
     char len_buf[128];
     struct hostent *host;
@@ -225,21 +286,12 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
         goto cleanup;
     }
 
-    // Copy and split the hostname into host and port
-    host_name = strdup(data->residual);
-    port = strchr(host_name, ':');
-    if (!port)
-        // No port provided. Should we allow a default port?
-        return -1;
-    *port = 0;
-    port += 1;
-
-    host = gethostbyname(host_name);
+    host = gethostbyname(data->host_name);
     memcpy(&sock_addr.sin_addr, host->h_addr_list[0], host->h_length);
     sock_addr.sin_family = AF_INET;
-    sock_addr.sin_port = htons(atoi(port));
+    sock_addr.sin_port = htons(data->port);
     
-    printf("rcc_retrieve: Connecting to %s:%d\n", host_name, atoi(port));
+    printf("rcc_retrieve: Connecting to %s\n", data->residual);
     CHECK(connect(sock, (struct sockaddr *)&sock_addr, sizeof(sock_addr)));
 
     // Talk to the agent
