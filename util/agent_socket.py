@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 
 # Basic starting code for the agent
 # Set up for testing, doesn't handle errors well yet
