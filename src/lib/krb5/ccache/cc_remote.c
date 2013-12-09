@@ -438,51 +438,13 @@ rcc_get_flags(krb5_context context, krb5_ccache cache, krb5_flags *flags_out)
     return krb5_fcc_ops.get_flags(context, data->fcc, flags_out);
 }
 
-/* TODO modify or remove */
-struct dcc_ptcursor_data {
-    char *primary;
-    char *dirname;
-    DIR *dir;
-    krb5_boolean first;
-};
-
-/* Construct a cursor, taking ownership of dirname, primary, and dir on
- * success. */
-static krb5_error_code
-make_cursor(char *dirname, char *primary, DIR *dir,
-            krb5_cc_ptcursor *cursor_out)
-{
-    /* TODO implement remote socket */
-    krb5_cc_ptcursor cursor;
-    struct dcc_ptcursor_data *data;
-
-    *cursor_out = NULL;
-
-    data = malloc(sizeof(*data));
-    if (data == NULL)
-        return ENOMEM;
-    cursor = malloc(sizeof(*cursor));
-    if (cursor == NULL) {
-        free(data);
-        return ENOMEM;
-    }
-
-    data->dirname = dirname;
-    data->primary = primary;
-    data->dir = dir;
-    data->first = TRUE;
-    cursor->ops = &krb5_rcc_ops;
-    cursor->data = data;
-    *cursor_out = cursor;
-    return 0;
-}
-
 static krb5_error_code KRB5_CALLCONV
 rcc_ptcursor_new(krb5_context context, krb5_cc_ptcursor *cursor_out)
 {
     // Per-type cursor acts as an fcc cursor for the purposes of rcc.
     // TODO: Implement the ability to iterate over all available tickets?
-    return krb5_fcc_ptcursor_new(context, cursor_out);
+
+    return krb5_fcc_ops.ptcursor_new(context, cursor_out);
 }
 
 static krb5_error_code KRB5_CALLCONV
@@ -490,14 +452,14 @@ rcc_ptcursor_next(krb5_context context, krb5_cc_ptcursor cursor,
                   krb5_ccache *cache_out)
 {
     // Per-type cursor acts as an fcc cursor for the purposes of rcc.
-    return krb5_fcc_ptcursor_next(context, cursor, cache_out);
+    return krb5_fcc_ops.ptcursor_next(context, cursor, cache_out);
 }
 
 static krb5_error_code KRB5_CALLCONV
 rcc_ptcursor_free(krb5_context context, krb5_cc_ptcursor *cursor)
 {
     // Per-type cursor acts as an fcc cursor for the purposes of rcc.
-    return krb5_fcc_ptcursor_free(context, cursor);
+    return krb5_fcc_ops.ptcursor_free(context, cursor);
 }
 
 static krb5_error_code KRB5_CALLCONV
