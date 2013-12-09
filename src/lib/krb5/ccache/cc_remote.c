@@ -26,6 +26,8 @@ typedef struct rcc_data_st {
 
 static krb5_error_code KRB5_CALLCONV
 rcc_socket_parse(char const *residual, char **host_name, int *port);
+static krb5_error_code KRB5_CALLCONV
+rcc_socket_connect(krb5_ccache cache);
 
 /* Verify that the remote exists as a socket. */
 static krb5_error_code
@@ -252,6 +254,38 @@ cleanup:
     return -1;
 }
 
+/*
+ * rcc_socket_connect - Connects to this remote ccache's network socket
+ *
+ * Returns the socket file descriptor on success, or -1 on error.
+ */
+static krb5_error_code KRB5_CALLCONV
+rcc_socket_connect(krb5_ccache cache)
+{
+    int sock;
+    struct hostent *host;
+    struct sockaddr_in sock_addr;
+    rcc_data *data = cache->data;
+
+    // Socket retrieve
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0)
+    {
+        return -1;
+    }
+
+    host = gethostbyname(data->host_name);
+    memcpy(&sock_addr.sin_addr, host->h_addr_list[0], host->h_length);
+    sock_addr.sin_family = AF_INET;
+    sock_addr.sin_port = htons(data->port);
+
+    printf("rcc_socket_connect: Connecting to %s\n", data->residual);
+    if (connect(sock, (struct sockaddr *)&sock_addr, sizeof(sock_addr)))
+        return -1;
+
+    return sock;
+}
+
 static krb5_error_code KRB5_CALLCONV
 rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
              krb5_creds *mcreds, krb5_creds *creds)
@@ -262,8 +296,6 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
     rcc_data *data = cache->data;
     char msg_buf[1024];
     char len_buf[128];
-    struct hostent *host;
-    struct sockaddr_in sock_addr;
     int sock, ret, i, len;
     char *newline;
     char tmpname[24] = "/tmp/rcc_retrieveXXXXXX";
@@ -279,21 +311,8 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
     if (!ret)
         return ret;
 
-    // Socket retrieve
-    sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0)
-    {
-        ret = -1;
+    if ((sock = rcc_socket_connect(cache)) < 0)
         goto cleanup;
-    }
-
-    host = gethostbyname(data->host_name);
-    memcpy(&sock_addr.sin_addr, host->h_addr_list[0], host->h_length);
-    sock_addr.sin_family = AF_INET;
-    sock_addr.sin_port = htons(data->port);
-    
-    printf("rcc_retrieve: Connecting to %s\n", data->residual);
-    CHECK(connect(sock, (struct sockaddr *)&sock_addr, sizeof(sock_addr)));
 
     // Talk to the agent
     // TODO: Get the service name
