@@ -70,17 +70,10 @@ try:
             if status == 0:
                 if os.path.isfile(service_ticket_location):
                     os.remove(service_ticket_location)
-                kinit_cmd = "kinit -g -c "+service_ticket_location+ \
-                    " krbtgt@ATHENA.MIT.EDU"
-                print kinit_cmd
-                os.system(kinit_cmd)
-
-                ## For testing, change this line to point to
-                ## your compiled kcpytkt
-                cpy_cmd = "kcpytkt -c "+cache_location+" "+ \
-                              service_ticket_location+" "+server_principal
-                print cpy_cmd
-                os.system(cpy_cmd)
+                kserialize_cmd = "kserialize "+cache_location+" "+ \
+                    server_principal+" "+service_ticket_location
+                print kserialize_cmd
+                os.system(kserialize_cmd)
 
                 f = open(service_ticket_location, 'r')
                 tkt = f.read()
