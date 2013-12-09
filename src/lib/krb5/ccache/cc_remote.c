@@ -150,6 +150,7 @@ rcc_init(krb5_context context, krb5_ccache cache, krb5_principal princ)
     // Talk to the agent
     snprintf(msg_buf, 1024, "kinit\n%s@%s\n", princ->data[0].data, princ->realm.data);
     snprintf(len_buf, 128, "%zd\n", strlen(msg_buf));
+    printf("init: sending remote requests\n");
     CHECK_LT0(send(sock, len_buf, strlen(len_buf), 0));
     CHECK_LT0(send(sock, msg_buf, strlen(msg_buf), 0));
     // Iterate and fill buf
@@ -161,8 +162,15 @@ rcc_init(krb5_context context, krb5_ccache cache, krb5_principal princ)
         i += ret;
     }
     msg_buf[i] = 0;
+    printf("Received data: %s\n", msg_buf);
 
-    CHECK(!strncmp(msg_buf, "OK", 2));
+    if (ret = strncmp(msg_buf, "OK", 2))
+    {
+        printf("Remote kinit failed.\n");
+        goto cleanup;
+    }
+
+    printf("init: REMOTE success!\n");
 
     CHECK(krb5_fcc_ops.init(context, data->fcc, princ));
 
@@ -453,8 +461,9 @@ static krb5_error_code KRB5_CALLCONV
 rcc_ptcursor_next(krb5_context context, krb5_cc_ptcursor cursor,
                   krb5_ccache *cache_out)
 {
+    rcc_data *data = (*cache_out)->data;
     // Per-type cursor acts as an fcc cursor for the purposes of rcc.
-    return krb5_fcc_ops.ptcursor_next(context, cursor, cache_out);
+    return krb5_fcc_ops.ptcursor_next(context, cursor, data->fcc);
 }
 
 static krb5_error_code KRB5_CALLCONV
