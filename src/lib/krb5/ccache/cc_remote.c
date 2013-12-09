@@ -60,10 +60,8 @@ make_cache(const char *residual, krb5_ccache fcc, krb5_ccache *cache_out)
     residual_copy = strdup(residual);
     if (residual_copy == NULL)
         goto oom;
-
     if (rcc_socket_parse(residual_copy, &host_name_copy, &port_copy))
         goto oom;
-
     data->residual = residual_copy;
     data->host_name = host_name_copy;
     data->portstr = port_copy;
@@ -87,11 +85,24 @@ rcc_resolve(krb5_context context, krb5_ccache *cache_out, const char *residual)
     krb5_error_code ret;
     krb5_ccache fcc;
 
+    const char storage_name[128];
+
     *cache_out = NULL;
 
+    /*
     ret = krb5_cc_default(context, &fcc);
+    */
+    /* Set fixed cache location so we can use remote as default */
+    
+    snprintf(storage_name, sizeof(storage_name), 
+	     "FILE:/tmp/krb5cc_%ld", (long) getuid());
+    if (!context || context->magic != KV5M_CONTEXT)
+        ret = KV5M_CONTEXT;
+    else ret = krb5_cc_resolve(context, storage_name, &fcc);
+    
     if (ret)
         goto cleanup;
+
     ret = make_cache(residual, fcc, cache_out);
     if (ret)
         krb5_fcc_ops.close(context, fcc);
