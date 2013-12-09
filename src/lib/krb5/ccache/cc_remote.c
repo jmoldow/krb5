@@ -45,7 +45,6 @@ rcc_get_name(krb5_context context, krb5_ccache cache)
 static krb5_error_code
 make_cache(const char *residual, krb5_ccache fcc, krb5_ccache *cache_out)
 {
-    /* TODO implement remote socket */
     krb5_ccache cache = NULL;
     rcc_data *data = NULL;
     char *residual_copy = NULL;
@@ -175,7 +174,6 @@ cleanup:
 static krb5_error_code KRB5_CALLCONV
 rcc_destroy(krb5_context context, krb5_ccache cache)
 {
-    /* TODO implement remote socket */
     rcc_data *data = cache->data;
     krb5_error_code ret;
 
@@ -188,7 +186,6 @@ rcc_destroy(krb5_context context, krb5_ccache cache)
 static krb5_error_code KRB5_CALLCONV
 rcc_close(krb5_context context, krb5_ccache cache)
 {
-    /* TODO implement remote socket */
     rcc_data *data = cache->data;
     krb5_error_code ret;
 
@@ -394,7 +391,6 @@ rcc_get_princ(krb5_context context, krb5_ccache cache,
 static krb5_error_code KRB5_CALLCONV
 rcc_get_first(krb5_context context, krb5_ccache cache, krb5_cc_cursor *cursor)
 {
-    /* TODO implement remote socket */
     rcc_data *data = cache->data;
 
     return krb5_fcc_ops.get_first(context, data->fcc, cursor);
@@ -404,7 +400,6 @@ static krb5_error_code KRB5_CALLCONV
 rcc_get_next(krb5_context context, krb5_ccache cache, krb5_cc_cursor *cursor,
              krb5_creds *creds)
 {
-    /* TODO implement remote socket */
     rcc_data *data = cache->data;
 
     return krb5_fcc_ops.get_next(context, data->fcc, cursor, creds);
@@ -413,7 +408,6 @@ rcc_get_next(krb5_context context, krb5_ccache cache, krb5_cc_cursor *cursor,
 static krb5_error_code KRB5_CALLCONV
 rcc_end_get(krb5_context context, krb5_ccache cache, krb5_cc_cursor *cursor)
 {
-    /* TODO implement remote socket */
     rcc_data *data = cache->data;
 
     return krb5_fcc_ops.end_get(context, data->fcc, cursor);
@@ -486,112 +480,24 @@ make_cursor(char *dirname, char *primary, DIR *dir,
 static krb5_error_code KRB5_CALLCONV
 rcc_ptcursor_new(krb5_context context, krb5_cc_ptcursor *cursor_out)
 {
-    /* TODO implement remote socket */
-    return -1;
-    /*
-    krb5_error_code ret;
-    char *dirname = NULL, *primary_path = NULL, *primary = NULL;
-    DIR *dir = NULL;
-
-    *cursor_out = NULL;
-
-    // Open the directory for the context's default cache.
-    ret = get_context_default_dir(context, &dirname);
-    if (ret || dirname == NULL)
-        goto cleanup;
-    dir = opendir(dirname);
-    if (dir == NULL)
-        goto cleanup;
-
-    // Fetch the primary cache name if possible.
-    ret = primary_pathname(dirname, &primary_path);
-    if (ret)
-        goto cleanup;
-    ret = read_primary_file(context, primary_path, dirname, &primary);
-    if (ret)
-        krb5_clear_error_message(context);
-
-    ret = make_cursor(dirname, primary, dir, cursor_out);
-    if (ret)
-        goto cleanup;
-    dirname = primary = NULL;
-    dir = NULL;
-
-cleanup:
-    free(dirname);
-    free(primary_path);
-    free(primary);
-    if (dir)
-        closedir(dir);
-    // Return an empty cursor if we fail for any reason.
-    if (*cursor_out == NULL)
-        return make_cursor(NULL, NULL, NULL, cursor_out);
-    return 0;
-    */
+    // Per-type cursor acts as an fcc cursor for the purposes of rcc.
+    // TODO: Implement the ability to iterate over all available tickets?
+    return krb5_fcc_ptcursor_new(context, cursor_out);
 }
 
 static krb5_error_code KRB5_CALLCONV
 rcc_ptcursor_next(krb5_context context, krb5_cc_ptcursor cursor,
                   krb5_ccache *cache_out)
 {
-    /* TODO implement remote socket */
-    return -1;
-    /*
-    struct dcc_ptcursor_data *data = cursor->data;
-    struct dirent *ent;
-    char *residual;
-    krb5_error_code ret;
-    struct stat sb;
-
-    *cache_out = NULL;
-    if (data->dir == NULL)      // Empty cursor
-        return 0;
-
-    // Return the primary cache if we haven't yet.
-    if (data->first) {
-        data->first = FALSE;
-        if (data->primary != NULL && stat(data->primary + 1, &sb) == 0)
-            return rcc_resolve(context, cache_out, data->primary);
-    }
-
-    // Look for the next filename of the correct form, without repeating the
-    // primary cache.
-    while ((ent = readdir(data->dir)) != NULL) {
-        if (!filename_is_cache(ent->d_name))
-            continue;
-        ret = subsidiary_residual(data->dirname, ent->d_name, &residual);
-        if (ret)
-            return ret;
-        if (data->primary != NULL && strcmp(residual, data->primary) == 0) {
-            free(residual);
-            continue;
-        }
-        ret = rcc_resolve(context, cache_out, residual);
-        free(residual);
-        return ret;
-    }
-
-    // We exhausted the directory without finding a cache to yield.
-    free(data->dir);
-    data->dir = NULL;
-    return 0;
-    */
+    // Per-type cursor acts as an fcc cursor for the purposes of rcc.
+    return krb5_fcc_ptcursor_next(context, cursor, cache_out);
 }
 
 static krb5_error_code KRB5_CALLCONV
 rcc_ptcursor_free(krb5_context context, krb5_cc_ptcursor *cursor)
 {
-    /* TODO implement remote socket */
-    struct dcc_ptcursor_data *data = (*cursor)->data;
-
-    if (data->dir)
-        closedir(data->dir);
-    free(data->dirname);
-    free(data->primary);
-    free(data);
-    free(*cursor);
-    *cursor = NULL;
-    return 0;
+    // Per-type cursor acts as an fcc cursor for the purposes of rcc.
+    return krb5_fcc_ptcursor_free(context, cursor);
 }
 
 static krb5_error_code KRB5_CALLCONV
@@ -617,34 +523,6 @@ rcc_unlock(krb5_context context, krb5_ccache cache)
     rcc_data *data = cache->data;
 
     return krb5_fcc_ops.unlock(context, data->fcc);
-}
-
-static krb5_error_code KRB5_CALLCONV
-rcc_switch_to(krb5_context context, krb5_ccache cache)
-{
-    /* TODO implement remote socket */
-    return -1;
-    /*
-    rcc_data *data = cache->data;
-    char *primary_path = NULL, *dirname = NULL, *filename = NULL;
-    krb5_error_code ret;
-
-    ret = split_path(context, data->residual + 1, &dirname, &filename);
-    if (ret)
-        return ret;
-
-    ret = primary_pathname(dirname, &primary_path);
-    if (ret)
-        goto cleanup;
-
-    ret = write_primary_file(primary_path, filename);
-
-cleanup:
-    free(primary_path);
-    free(dirname);
-    free(filename);
-    return ret;
-    */
 }
 
 const krb5_cc_ops krb5_rcc_ops = {
@@ -673,5 +551,5 @@ const krb5_cc_ops krb5_rcc_ops = {
     NULL, /* wasdefault */
     rcc_lock,
     rcc_unlock,
-    rcc_switch_to,
+    NULL, /* switch_to */
 };
