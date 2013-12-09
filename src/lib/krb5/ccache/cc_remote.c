@@ -156,14 +156,14 @@ rcc_init(krb5_context context, krb5_ccache cache, krb5_principal princ)
     // Iterate and fill buf
     i = 0;
     ret = 1;
-    while (i < 4 && ret > 0)
+    while (i < 2)
     {
         ret = recv(sock, (void*)(msg_buf+i), 4-i, 0);
         i += ret;
     }
     msg_buf[i] = 0;
 
-    CHECK(strncmp(msg_buf, "FAIL", 4) || !strncmp(msg_buf, "OK", 4));
+    CHECK(!strncmp(msg_buf, "OK", 2));
 
     CHECK(krb5_fcc_ops.init(context, data->fcc, princ));
 
