@@ -79,8 +79,10 @@ try:
 
                 f = open(service_ticket_location, 'r')
                 tkt = f.read()
+                print "Sending ticket: %d, %s" % (len(tkt), tkt)
                 conn.send("%d\n%s" % (len(tkt), tkt))
             else:
+                print "FAIL"
                 conn.send("FAIL")
 except (IOError, KeyboardInterrupt) as e:
     sock.close()
