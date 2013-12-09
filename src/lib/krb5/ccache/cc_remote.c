@@ -23,36 +23,14 @@ extern const krb5_cc_ops krb5_fcc_ops;
 typedef struct rcc_data_st {
     char *residual;             /* network socket's host:port */
     char *host_name;            /* network socket host */
-    int port;                   /* network socket port */
+    char *portstr;              /* network socket port (as a string) */
     krb5_ccache fcc;            /* File cache for actual cache ops */
 } rcc_data;
 
 static krb5_error_code KRB5_CALLCONV
-rcc_socket_parse(char const *residual, char **host_name, int *port);
+rcc_socket_parse(char const *residual, char **host_name, char **portstr);
 static krb5_error_code KRB5_CALLCONV
 rcc_socket_connect(krb5_ccache cache);
-
-/* Verify that the remote exists as a socket. */
-static krb5_error_code
-verify_remote(krb5_context context, const char *sockname)
-{
-    /* TODO implement remote socket */
-    struct stat st;
-
-    if (stat(sockname, &st) < 0) {
-        krb5_set_error_message(context, KRB5_FCC_NOFILE,
-                               "Socket %s does not "
-                               "exist", sockname);
-        return KRB5_FCC_NOFILE;
-    }
-    if (!S_ISSOCK(st.st_mode)) {
-        krb5_set_error_message(context, -1,
-                               "File %s exists but is"
-                               "not a socket", sockname);
-        return KRB5_CC_FORMAT;
-    }
-    return 0;
-}
 
 static const char * KRB5_CALLCONV
 rcc_get_name(krb5_context context, krb5_ccache cache)
@@ -72,7 +50,7 @@ make_cache(const char *residual, krb5_ccache fcc, krb5_ccache *cache_out)
     rcc_data *data = NULL;
     char *residual_copy = NULL;
     char *host_name_copy = NULL;
-    int port_copy = 0;
+    char *port_copy = NULL;
 
     cache = malloc(sizeof(*cache));
     if (cache == NULL)
@@ -89,7 +67,7 @@ make_cache(const char *residual, krb5_ccache fcc, krb5_ccache *cache_out)
 
     data->residual = residual_copy;
     data->host_name = host_name_copy;
-    data->port = port_copy;
+    data->portstr = port_copy;
     data->fcc = fcc;
     cache->ops = &krb5_rcc_ops;
     cache->data = data;
@@ -109,10 +87,6 @@ rcc_resolve(krb5_context context, krb5_ccache *cache_out, const char *residual)
 {
     krb5_error_code ret;
     krb5_ccache fcc;
-
-    /* TODO remove this */
-    printf("hello remote ccache\n");
-    exit(1);
 
     *cache_out = NULL;
 
@@ -161,8 +135,6 @@ cleanup:
 static krb5_error_code KRB5_CALLCONV
 rcc_init(krb5_context context, krb5_ccache cache, krb5_principal princ)
 {
-    /* TODO implement remote socket */
-
     int ret;
     char msg_buf[1024];
     char len_buf[128];
@@ -242,16 +214,16 @@ rcc_store(krb5_context context, krb5_ccache cache, krb5_creds *creds)
  *
  * host_name: a string pointer that, on successful return, will hold the host_name string
  *
- * port: an integer pointer that, on successful return, will hold the port
+ * port: an string pointer that, on successful return, will hold the port
  *
  * Returns 0 on success, and -1 on failure.
  */
 static krb5_error_code KRB5_CALLCONV
-rcc_socket_parse(char const *residual, char **host_name, int *port)
+rcc_socket_parse(char const *residual, char **host_name, char **portstr)
 {
     char *host_name_copy;
-    char *port_str;
-    long int port_copy;
+    char *portstr_copy;
+    long int port_int;
     char *endptr;
 
     char *colon = strchr(residual, ':');
@@ -265,19 +237,19 @@ rcc_socket_parse(char const *residual, char **host_name, int *port)
     host_name_copy = strndup(residual, (colon - residual));
     if (!host_name_copy)
         goto cleanup;
-    port_str = colon + 1;
-    port_copy = strtol(port_str, &endptr, 10);
-    if (!port_copy || *endptr)
+    portstr_copy = colon + 1;
+    port_int = strtol(portstr_copy, &endptr, 10);
+    if (!port_int || *endptr)
     {
         // Parsing the port number failed, either because
-        // there are no numbers after the colon (!port_copy) or because
+        // there are no numbers after the colon (!port_int) or because
         // the port number does not end the string (*endptr != '\0').
         goto cleanup;
     }
 
     // Succeeded at parsing, overwrite pointers.
     *host_name = host_name_copy;
-    *port = (int)port_copy;
+    *portstr = portstr_copy;
     return 0;
 
 cleanup:
@@ -293,25 +265,27 @@ cleanup:
 static krb5_error_code KRB5_CALLCONV
 rcc_socket_connect(krb5_ccache cache)
 {
-    int sock;
-    struct hostent *host;
-    struct sockaddr_in sock_addr;
     rcc_data *data = cache->data;
+    struct addrinfo hints = {0}, *res;
+    int sockfd;
+    int e;
 
-    sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0)
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    if ((e = getaddrinfo(data->host_name, data->portstr, &hints, &res)))
+    {
+        printf("getaddrinfo: %s\n", gai_strerror(e));
         return -1;
-
-    host = gethostbyname(data->host_name);
-    memcpy(&sock_addr.sin_addr, host->h_addr_list[0], host->h_length);
-    sock_addr.sin_family = AF_INET;
-    sock_addr.sin_port = htons(data->port);
-
-    printf("rcc_socket_connect: Connecting to %s\n", data->residual);
-    if (connect(sock, (struct sockaddr *)&sock_addr, sizeof(sock_addr)))
+    }
+    if ((sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) < 0)
         return -1;
+    if (connect(sockfd, res->ai_addr, res->ai_addrlen))
+        return -1;
+    freeaddrinfo(res);
 
-    return sock;
+    return sockfd;
 }
 
 static krb5_error_code KRB5_CALLCONV
