@@ -256,17 +256,18 @@ static krb5_error_code KRB5_CALLCONV
 rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
              krb5_creds *mcreds, krb5_creds *creds)
 {
-#define CHECK(EXPR) if(ret = EXPR) goto cleanup;
-#define CHECK_LT0(EXPR) if((ret = EXPR) < 0) goto cleanup;
+#define CHECK(EXPR) if((ret = (EXPR))) goto cleanup;
+#define CHECK_LT0(EXPR) if((ret = (EXPR)) < 0) goto cleanup;
 
     rcc_data *data = cache->data;
     char msg_buf[1024];
     char len_buf[128];
     struct hostent *host;
     struct sockaddr_in sock_addr;
-    int sock, ret, index, len;
+    int sock, ret, i, len;
     char *newline;
-    char tmpname[L_tmpnam];
+    char tmpname[24] = "/tmp/rcc_retrieveXXXXXX";
+    int tmp_fd;
     FILE *tmp = NULL;
 
     krb5_ccache tcc;
@@ -297,21 +298,21 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
     // Talk to the agent
     // TODO: Get the service name
     snprintf(msg_buf, 1024, "ticket %s\n", "serviceA");
-    snprintf(len_buf, 128, "%d\n", strlen(msg_buf));
+    snprintf(len_buf, 128, "%zd\n", strlen(msg_buf));
     CHECK_LT0(send(sock, len_buf, strlen(len_buf), 0));
     CHECK_LT0(send(sock, msg_buf, strlen(msg_buf), 0));
     // Iterate and fill buf until we reach a newline
-    index = 0;
+    i = 0;
     msg_buf[0] = 0;
-    while (index != 1024 && (newline = strchr(msg_buf, '\n')) == NULL)
+    while (i != 1024 && (newline = strchr(msg_buf, '\n')) == NULL)
     {
-        ret = recv(sock, msg_buf[index], 1024-index, 0);
+        ret = recv(sock, (void*)(msg_buf+i), 1024-i, 0);
         if (ret <= 0)
         {
             ret = -1;
             goto cleanup;
         }
-        index += ret;
+        i += ret;
     }
     if (!newline)
     {
@@ -324,8 +325,8 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
 
     // Stream the socket data into a file. This file will be formatted
     // as a ccache file with exactly one ticket -- the one requested
-    tmpnam(tmpname);
-    tmp = fopen(tmpname, "w");
+    tmp_fd = mkstemp(tmpname);
+    tmp = fdopen(tmp_fd, "w");
     CHECK_LT0(fputs(newline, tmp));
     len -= strlen(newline);
     while (len > 0)
