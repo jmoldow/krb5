@@ -1,3 +1,3 @@
 for name in kserialize kunserialize; do
-    gcc -o $name $name.c -lkrb5
+    gcc -o $name $name.c -lkrb5 -lcom_err
 done
