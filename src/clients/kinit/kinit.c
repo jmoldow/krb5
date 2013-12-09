@@ -467,6 +467,11 @@ k5_begin(opts, k5)
     }
 
     if (opts->k5_cache_name) {
+        if (strncmp(opts->k5_cache_name, "REMOTE:", 6) == 0) {
+            // Adds -g agent flag automatically if a
+            // remote ccache is specified.
+            opts->agent = 1;
+        }
         code = krb5_cc_resolve(k5->ctx, opts->k5_cache_name, &k5->cc);
         if (code != 0) {
             com_err(progname, code, _("resolving ccache %s"),

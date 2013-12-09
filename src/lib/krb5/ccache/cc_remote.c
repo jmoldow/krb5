@@ -162,7 +162,7 @@ rcc_init(krb5_context context, krb5_ccache cache, krb5_principal princ)
         i += ret;
     }
     msg_buf[i] = 0;
-    printf("Received data: %s", msg_buf);
+    printf("Received data: %s\n", msg_buf);
 
     if (ret = strncmp(msg_buf, "OK", 2))
     {
