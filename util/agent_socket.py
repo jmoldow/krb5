@@ -7,7 +7,7 @@ import os, os.path
 import socket
 
 # for testing/demo, can make this an argument later
-sock_path = "localhost"
+sock_path = ""
 sock_port = 8001
 uid = os.getuid()
 # can implement setting a different location later if we care
