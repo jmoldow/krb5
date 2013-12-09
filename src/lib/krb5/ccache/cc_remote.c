@@ -316,7 +316,7 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
 
     // Talk to the agent
     // TODO: Get the service name
-    snprintf(msg_buf, 1024, "ticket %s\n", "serviceA");
+    snprintf(msg_buf, 1024, "ticket\n%s\n", "serviceA");
     snprintf(len_buf, 128, "%zd\n", strlen(msg_buf));
     CHECK_LT0(send(sock, len_buf, strlen(len_buf), 0));
     CHECK_LT0(send(sock, msg_buf, strlen(msg_buf), 0));
