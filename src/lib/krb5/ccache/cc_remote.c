@@ -302,6 +302,7 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
     char len_buf[128];
     int sock, ret, i, len;
     char *newline;
+    char *princname;
     char tmpname[24] = "/tmp/rcc_retrieveXXXXXX";
     int tmp_fd;
     FILE *tmp = NULL;
@@ -311,16 +312,19 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
     krb5_cc_cursor cursor;
 
     // Attempt file retrieve
+    printf("File retrieve\n");
     ret = krb5_fcc_ops.retrieve(context, data->fcc, flags, mcreds, creds);
     if (!ret)
         return ret;
 
+    printf("Network retrieve\n");
     if ((sock = rcc_socket_connect(cache)) < 0)
         goto cleanup;
 
     // Talk to the agent
-    // TODO: Get the service name
-    snprintf(msg_buf, 1024, "ticket\n%s\n", "serviceA");
+    krb5_unparse_name(context, mcreds->server, &princname);
+    printf("principal: %s\n", princname);
+    snprintf(msg_buf, 1024, "ticket\n%s", princname);
     snprintf(len_buf, 128, "%zd\n", strlen(msg_buf));
     CHECK_LT0(send(sock, len_buf, strlen(len_buf), 0));
     CHECK_LT0(send(sock, msg_buf, strlen(msg_buf), 0));
@@ -336,6 +340,7 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
             goto cleanup;
         }
         i += ret;
+        msg_buf[i] = 0;
     }
     if (!newline)
     {
@@ -345,18 +350,20 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
     *newline = 0;
     newline += 1;
     len = atoi(msg_buf);
+    printf("Received len header: %d, %s\n", len, msg_buf);
 
     // Stream the socket data into a file. This file will be formatted
     // as a ccache file with exactly one ticket -- the one requested
     tmp_fd = mkstemp(tmpname);
     tmp = fdopen(tmp_fd, "w");
-    CHECK_LT0(fputs(newline, tmp));
-    len -= strlen(newline);
+    CHECK_LT0(fwrite(newline, sizeof(char), i - strlen(msg_buf), tmp));
+    len -= i - strlen(msg_buf);
     while (len > 0)
     {
         ret = recv(sock, msg_buf, 1024, 0);
         if (ret <= 0)
         {
+            printf("Receiving ticket failed: socket error\n");
             ret = -1;
             goto cleanup;
         }
