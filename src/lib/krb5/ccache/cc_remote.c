@@ -13,6 +13,9 @@
 
 #include <dirent.h>
 
+#define CHECK(EXPR) if((ret = (EXPR))) goto cleanup;
+#define CHECK_LT0(EXPR) if((ret = (EXPR)) < 0) goto cleanup;
+
 extern const krb5_cc_ops krb5_rcc_ops;
 extern const krb5_cc_ops krb5_fcc_ops;
 
@@ -160,13 +163,41 @@ rcc_init(krb5_context context, krb5_ccache cache, krb5_principal princ)
 {
     /* TODO implement remote socket */
 
+    int ret;
+    char msg_buf[1024];
+    char len_buf[128];
+    int sock, i;
+
     rcc_data *data = cache->data;
 
-    /* TODO remove this */
-    printf("hello remote ccache\n");
-    exit(1);
+    if ((sock = rcc_socket_connect(cache)) < 0)
+    {
+        ret = -1;
+        goto cleanup;
+    }
 
-    return krb5_fcc_ops.init(context, data->fcc, princ);
+    // Talk to the agent
+    snprintf(msg_buf, 1024, "kinit\n%s@%s\n", princ->data[0].data, princ->realm.data);
+    snprintf(len_buf, 128, "%zd\n", strlen(msg_buf));
+    CHECK_LT0(send(sock, len_buf, strlen(len_buf), 0));
+    CHECK_LT0(send(sock, msg_buf, strlen(msg_buf), 0));
+    // Iterate and fill buf
+    i = 0;
+    ret = 1;
+    while (i < 4 && ret > 0)
+    {
+        ret = recv(sock, (void*)(msg_buf+i), 4-i, 0);
+        i += ret;
+    }
+    msg_buf[i] = 0;
+
+    CHECK(strncmp(msg_buf, "FAIL", 4) || !strncmp(msg_buf, "OK", 4));
+
+    CHECK(krb5_fcc_ops.init(context, data->fcc, princ));
+
+cleanup:
+    close(sock);
+    return ret;
 }
 
 static krb5_error_code KRB5_CALLCONV
@@ -290,9 +321,6 @@ static krb5_error_code KRB5_CALLCONV
 rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
              krb5_creds *mcreds, krb5_creds *creds)
 {
-#define CHECK(EXPR) if((ret = (EXPR))) goto cleanup;
-#define CHECK_LT0(EXPR) if((ret = (EXPR)) < 0) goto cleanup;
-
     rcc_data *data = cache->data;
     char msg_buf[1024];
     char len_buf[128];
