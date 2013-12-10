@@ -354,19 +354,16 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
     // Iterate and fill buf until we reach a newline
     i = 0;
     msg_buf[0] = 0;
-    while (i != 1024 && (newline = strchr(msg_buf, '\n')) == NULL)
-    {
+    while (i != 1024 && (newline = strchr(msg_buf, '\n')) == NULL) {
         ret = recv(sock, (void*)(msg_buf+i), 1024-i, 0);
-        if (ret <= 0)
-        {
+        if (!strncmp(msg_buf, "FAIL", 4) || ret <= 0) {
             ret = -1;
             goto cleanup;
         }
         i += ret;
         msg_buf[i] = 0;
     }
-    if (!newline)
-    {
+    if (!newline) {
         ret = -1;
         goto cleanup;
     }
@@ -384,8 +381,7 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
     while (len > 0)
     {
         ret = recv(sock, msg_buf, 1024, 0);
-        if (ret <= 0)
-        {
+        if (ret <= 0) {
             printf("Receiving ticket failed: socket error\n");
             ret = -1;
             goto cleanup;
