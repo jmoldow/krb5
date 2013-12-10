@@ -23,6 +23,8 @@ def do_kinit(client_principal):
     return os.system("kinit -c {0} {1}".format(cache_location, client_principal))
 def do_ticket(server_principal):
     return os.system("kvno -c {0} {1}".format(cache_location, server_principal))
+def do_kdestroy():
+    return os.system("kdestroy -c {0}".format(cache_location))
 
 sock.bind(('', port))
 sock.listen(0)
@@ -40,7 +42,7 @@ while True:
                 print("kinit failed")
                 conn.send("FAIL")
         elif cmd == "ticket":
-            if do_ticket(arg) == 0:
+            if (not arg.startswith('krbtgt')) and do_ticket(arg) == 0:
                 os.system("kserialize {0} {1} {2}".format(cache_location, arg,
                                                           service_ticket_location))
                 tkt = open(service_ticket_location, 'r').read()
@@ -49,9 +51,13 @@ while True:
             else:
                 print("Ticket request failed")
                 conn.send("FAIL")
+        elif cmd == "kdestroy":
+            do_kdestroy()
         else:
             print("Unimplemented command \"{0}\"".format(cmd))
     except IOError:
         print("Something bad happened over the socket.")
     except KeyboardInterrupt:
         exit()
+    except:
+        print("An unknown error occurred.")
