@@ -22,6 +22,8 @@ def get_message(conn):
 def do_kinit(client_principal):
     return os.system("kinit -c {0} {1}".format(cache_location, client_principal))
 def do_ticket(server_principal):
+    # TODO: ask for user confirmation before granting a ticket.
+    # TODO: allow user to speficy reduced lifetime, non-forwardable, etc.
     return os.system("kvno -c {0} {1}".format(cache_location, server_principal))
 def do_kdestroy():
     return os.system("kdestroy -c {0}".format(cache_location))
