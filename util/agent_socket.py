@@ -12,27 +12,14 @@ sock = socket.socket()
 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 def get_full_msg(conn):
-    """
-    Reads in a complete message from |conn|. This method handles the protocol
-    "length\nmsg" by continuing to read from the socket until we have assembled
-    a message of the appropriate length.
-    """
-    full_msg = ""
-    length = -1
-    while length != 0:
+    """Read in a message that looks like "length\nmessage" from conn."""
+    length, message = conn.recv(1024).split('\n', 1)
+    while int(length) != len(message):
         msg = conn.recv(1024)
-        print "recv:", msg
         if not msg:
-            raise ValueError("No input received over socket")
-        full_msg += msg
-        if length < 0 and full_msg.find('\n') >= 0:
-            # initialize length
-            length_str, rem = full_msg.split('\n', 1)
-            full_msg = rem
-            length = int(length_str) - len(rem)
-        elif length > 0:
-            length -= len(msg)
-    return (full_msg, length)
+            raise ValueError("Socket message was not long enough")
+        message += msg
+    return message
 
 def do_kinit(client_principal):
     return os.system("kinit -c {0} {1}".format(cache_location, client_principal))
@@ -45,9 +32,8 @@ try:
     sock.listen(0)
     while True:
         conn, addr = sock.accept()
-        print("Received socket connection from {0}".format(addr))
-        full_msg, length = get_full_msg(conn)
-        cmd, arg = full_msg.split('\n', 1)
+        print("Received socket connection from {0[1]}:{0[2]}".format(addr))
+        cmd, arg = get_full_msg(conn).split('\n', 1)
         print("Message decoded: {0} {1}".format(cmd, arg))
         if cmd == "kinit":
             if do_kinit(arg) == 0:
@@ -61,11 +47,13 @@ try:
                 os.system("kserialize {0} {1} {2}".format(cache_location, arg,
                                                           service_ticket_location))
                 tkt = open(service_ticket_location, 'r').read()
-                print("Sending ticket: {0} {1}".format(len(tkt), tkt))
+                print("Sending ticket: {0} bytes".format(len(tkt)))
                 conn.send("{0}\n{1}".format(len(tkt), tkt))
             else:
                 print("Ticket request failed")
                 conn.send("FAIL")
+        else:
+            print("Unimplemented command \"{0}\"".format(cmd))
 except (IOError, KeyboardInterrupt) as e:
     sock.close()
     exit()
