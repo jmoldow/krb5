@@ -35,7 +35,7 @@ while True:
         conn, addr = sock.accept()
         print("Received socket connection from {0[0]}:{0[1]}".format(addr))
         cmd, arg = get_message(conn).split('\n', 1)
-        print("Message decoded: {0} {1}".format(cmd, arg))
+        print("\nMessage decoded: {0} {1}".format(cmd, arg))
         if cmd == "kinit":
             if do_kinit(arg) == 0:
                 print("kinit successful")
