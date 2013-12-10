@@ -161,7 +161,6 @@ rcc_init(krb5_context context, krb5_ccache cache, krb5_principal princ)
     // Talk to the agent
     snprintf(msg_buf, 1024, "kinit\n%s@%s\n", princ->data[0].data, princ->realm.data);
     snprintf(len_buf, 128, "%zd\n", strlen(msg_buf));
-    printf("init: sending remote requests\n");
     CHECK_LT0(send(sock, len_buf, strlen(len_buf), 0));
     CHECK_LT0(send(sock, msg_buf, strlen(msg_buf), 0));
     // Iterate and fill buf
@@ -173,16 +172,13 @@ rcc_init(krb5_context context, krb5_ccache cache, krb5_principal princ)
         i += tmp;
     }
     msg_buf[i] = 0;
-    printf("Received data: %s\n", msg_buf);
 
     if (strncmp(msg_buf, "OK", 2))
     {
-        printf("Remote kinit failed.\n");
         ret = KRB5_CC_IO;
 	goto cleanup;
     }
 
-    printf("init: REMOTE success!\n");
     CHECK(krb5_fcc_ops.init(context, data->fcc, princ));
 
 cleanup:
@@ -202,7 +198,6 @@ rcc_destroy(krb5_context context, krb5_ccache cache)
     if ((sock = rcc_socket_connect(cache)) <  0) goto cleanup;
     snprintf(msg_buf, 1024, "kdestroy\n");
     snprintf(len_buf, 128, "%zd\n", strlen(msg_buf));
-    printf("destroy: sending remote request\n");
     CHECK_LT0(send(sock, len_buf, strlen(len_buf), 0));
     CHECK_LT0(send(sock, msg_buf, strlen(msg_buf), 0));
 cleanup:
@@ -303,10 +298,7 @@ rcc_socket_connect(krb5_ccache cache)
     hints.ai_flags = AI_PASSIVE;
 
     if ((e = getaddrinfo(data->host_name, data->portstr, &hints, &res)))
-    {
-        printf("getaddrinfo: %s\n", gai_strerror(e));
         return KRB5_CC_IO;
-    }
     if ((sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) < 0)
         return KRB5_CC_IO;
     if (connect(sockfd, res->ai_addr, res->ai_addrlen))
@@ -335,12 +327,10 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
     krb5_cc_cursor cursor;
 
     // Attempt file retrieve
-    printf("File retrieve\n");
     ret = krb5_fcc_ops.retrieve(context, data->fcc, flags, mcreds, creds);
     if (!ret)
         return ret;
 
-    printf("Network retrieve\n");
     if ((sock = rcc_socket_connect(cache)) < 0) {
         ret = KRB5_CC_IO;
         goto cleanup;
@@ -348,7 +338,6 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
 
     // Talk to the agent
     krb5_unparse_name(context, mcreds->server, &princname);
-    printf("principal: %s\n", princname);
     snprintf(msg_buf, 1024, "ticket\n%s", princname);
     snprintf(len_buf, 128, "%zd\n", strlen(msg_buf));
     CHECK_LT0(send(sock, len_buf, strlen(len_buf), 0));
@@ -372,7 +361,6 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
     *newline = 0;
     newline += 1;
     len = atoi(msg_buf);
-    printf("Received len header: %d, %s\n", len, msg_buf);
 
     // Stream the socket data into a file. This file will be formatted
     // as a ccache file with exactly one ticket -- the one requested
@@ -384,7 +372,6 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
     {
         ret = recv(sock, msg_buf, 1024, 0);
         if (ret <= 0) {
-            printf("Receiving ticket failed: socket error\n");
             ret = KRB5_CC_IO;
             goto cleanup;
         }
