@@ -175,10 +175,11 @@ rcc_init(krb5_context context, krb5_ccache cache, krb5_principal princ)
     msg_buf[i] = 0;
     printf("Received data: %s\n", msg_buf);
 
-    if (ret = strncmp(msg_buf, "OK", 2))
+    if (strncmp(msg_buf, "OK", 2))
     {
         printf("Remote kinit failed.\n");
-        goto cleanup;
+        ret = -1;
+	goto cleanup;
     }
 
     printf("init: REMOTE success!\n");
