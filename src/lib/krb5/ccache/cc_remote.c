@@ -394,6 +394,8 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
     CHECK(krb5_cc_close(context, tcc));
     // Save the ticket into the fcc
     CHECK(krb5_fcc_ops.store(context, data->fcc, &tkt));
+    // Remove the temporary ccache.
+    unlink(tmpname);
 
     // Perform a file retrieve as usual
     ret = krb5_fcc_ops.retrieve(context, data->fcc, flags, mcreds, creds);
