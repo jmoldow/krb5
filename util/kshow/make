@@ -1,1 +1,0 @@
-gcc -lkrb5 -lk5crypto -lcom_err -o kshow kshow.c
