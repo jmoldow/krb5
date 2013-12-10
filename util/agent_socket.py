@@ -46,6 +46,7 @@ while True:
                 os.system("kserialize {0} {1} {2}".format(cache_location, arg,
                                                           service_ticket_location))
                 tkt = open(service_ticket_location, 'r').read()
+                os.unlink(service_ticket_location)
                 print("Sending ticket: {0} bytes".format(len(tkt)))
                 conn.send("{0}\n{1}".format(len(tkt), tkt))
             else:
