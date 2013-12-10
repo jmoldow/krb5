@@ -826,6 +826,7 @@ main(argc, argv)
     struct k_opts opts;
     struct k5_data k5;
     int authed_k5 = 0;
+    krb5_error_code code;
 
     setlocale(LC_MESSAGES, "");
     progname = GET_PROGNAME(argv[0]);
@@ -848,8 +849,11 @@ main(argc, argv)
     parse_options(argc, argv, &opts);
 
     if (k5_begin(&opts, &k5)) {
-        if (opts.agent || !strcmp(krb5_cc_get_type(k5.ctx, k5.cc), "REMOTE"))
-            krb5_cc_initialize(k5.ctx, k5.cc, k5.me);
+        if (opts.agent || !strcmp(krb5_cc_get_type(k5.ctx, k5.cc), "REMOTE")) {
+            if (code = krb5_cc_initialize(k5.ctx, k5.cc, k5.me))
+                com_err(progname, code, _("when initializing cache %s"),
+                        opts.k5_cache_name ? opts.k5_cache_name : "");
+        }
         else
             authed_k5 = k5_kinit(&opts, &k5);
     }

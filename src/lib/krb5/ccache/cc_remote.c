@@ -121,7 +121,7 @@ rcc_gen_new(krb5_context context, krb5_ccache *cache_out)
      * TODO If we decide to implement default socket,
      * add an implementation here.
      */
-    return -1;
+    return KRB5_CC_NOSUPP;
     /*
     krb5_error_code ret;
     krb5_ccache fcc = NULL;
@@ -145,16 +145,16 @@ cleanup:
 static krb5_error_code KRB5_CALLCONV
 rcc_init(krb5_context context, krb5_ccache cache, krb5_principal princ)
 {
-    int ret;
+    krb5_error_code ret;
     char msg_buf[1024];
     char len_buf[128];
-    int sock, i;
+    int sock, i, tmp;
 
     rcc_data *data = cache->data;
 
     if ((sock = rcc_socket_connect(cache)) < 0)
     {
-        ret = -1;
+        ret = KRB5_CC_IO;
         goto cleanup;
     }
 
@@ -166,11 +166,11 @@ rcc_init(krb5_context context, krb5_ccache cache, krb5_principal princ)
     CHECK_LT0(send(sock, msg_buf, strlen(msg_buf), 0));
     // Iterate and fill buf
     i = 0;
-    ret = 1;
+    tmp = 1;
     while (i < 2)
     {
-        ret = recv(sock, (void*)(msg_buf+i), 4-i, 0);
-        i += ret;
+        tmp = recv(sock, (void*)(msg_buf+i), 4-i, 0);
+        i += tmp;
     }
     msg_buf[i] = 0;
     printf("Received data: %s\n", msg_buf);
@@ -178,12 +178,11 @@ rcc_init(krb5_context context, krb5_ccache cache, krb5_principal princ)
     if (strncmp(msg_buf, "OK", 2))
     {
         printf("Remote kinit failed.\n");
-        ret = -1;
+        ret = KRB5_CC_IO;
 	goto cleanup;
     }
 
     printf("init: REMOTE success!\n");
-
     CHECK(krb5_fcc_ops.init(context, data->fcc, princ));
 
 cleanup:
@@ -245,7 +244,7 @@ rcc_store(krb5_context context, krb5_ccache cache, krb5_creds *creds)
  *
  * port: an string pointer that, on successful return, will hold the port
  *
- * Returns 0 on success, and -1 on failure.
+ * Returns 0 on success, and KRB5_CC_IO on failure.
  */
 static krb5_error_code KRB5_CALLCONV
 rcc_socket_parse(char const *residual, char **host_name, char **portstr)
@@ -258,8 +257,8 @@ rcc_socket_parse(char const *residual, char **host_name, char **portstr)
     char *colon = strchr(residual, ':');
     if (!colon)
     {
-        // No port provided. Should we allow a default port?
-        return -1;
+        // No port provided.
+        return KRB5_CC_IO;
     }
 
     // Copy and split the residual into host and port
@@ -283,13 +282,13 @@ rcc_socket_parse(char const *residual, char **host_name, char **portstr)
 
 cleanup:
     free(host_name_copy);
-    return -1;
+    return KRB5_CC_IO;
 }
 
 /*
  * rcc_socket_connect - Connects to this remote ccache's network socket
  *
- * Returns the socket file descriptor on success, or -1 on error.
+ * Returns the socket file descriptor on success, or KRB5_CC_IO on error.
  */
 static krb5_error_code KRB5_CALLCONV
 rcc_socket_connect(krb5_ccache cache)
@@ -306,12 +305,12 @@ rcc_socket_connect(krb5_ccache cache)
     if ((e = getaddrinfo(data->host_name, data->portstr, &hints, &res)))
     {
         printf("getaddrinfo: %s\n", gai_strerror(e));
-        return -1;
+        return KRB5_CC_IO;
     }
     if ((sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) < 0)
-        return -1;
+        return KRB5_CC_IO;
     if (connect(sockfd, res->ai_addr, res->ai_addrlen))
-        return -1;
+        return KRB5_CC_IO;
     freeaddrinfo(res);
 
     return sockfd;
@@ -344,8 +343,10 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
         return ret;
 
     printf("Network retrieve\n");
-    if ((sock = rcc_socket_connect(cache)) < 0)
+    if ((sock = rcc_socket_connect(cache)) < 0) {
+        ret = KRB5_CC_IO;
         goto cleanup;
+    }
 
     // Talk to the agent
     krb5_unparse_name(context, mcreds->server, &princname);
@@ -360,14 +361,14 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
     while (i != 1024 && (newline = strchr(msg_buf, '\n')) == NULL) {
         ret = recv(sock, (void*)(msg_buf+i), 1024-i, 0);
         if (!strncmp(msg_buf, "FAIL", 4) || ret <= 0) {
-            ret = -1;
+            ret = KRB5_CC_IO;
             goto cleanup;
         }
         i += ret;
         msg_buf[i] = 0;
     }
     if (!newline) {
-        ret = -1;
+        ret = KRB5_CC_IO;
         goto cleanup;
     }
     *newline = 0;
@@ -386,7 +387,7 @@ rcc_retrieve(krb5_context context, krb5_ccache cache, krb5_flags flags,
         ret = recv(sock, msg_buf, 1024, 0);
         if (ret <= 0) {
             printf("Receiving ticket failed: socket error\n");
-            ret = -1;
+            ret = KRB5_CC_IO;
             goto cleanup;
         }
         ret = fputs(msg_buf, tmp);
