@@ -22,9 +22,12 @@ def get_message(conn):
 def do_kinit(client_principal):
     return os.system("kinit -c {0} {1}".format(cache_location, client_principal))
 def do_ticket(server_principal):
-    # TODO: ask for user confirmation before granting a ticket.
-    # TODO: allow user to speficy reduced lifetime, non-forwardable, etc.
-    return os.system("kvno -c {0} {1}".format(cache_location, server_principal))
+    sel = raw_input("Grant client ticket for {0}? [y/N] ".format(server_principal))
+    if sel in ['y', 'Y']:
+        return os.system("kvno -c {0} {1}".format(cache_location, server_principal))
+    # TODO: allow user to specify reduced lifetime, non-forwardable, etc.
+    else:
+        return -1
 def do_kdestroy():
     return os.system("kdestroy -c {0}".format(cache_location))
 
@@ -33,9 +36,9 @@ sock.listen(0)
 while True:
     try:
         conn, addr = sock.accept()
-        print("Received socket connection from {0[0]}:{0[1]}".format(addr))
+        print("\nReceived socket connection from {0[0]}:{0[1]}".format(addr))
         cmd, arg = get_message(conn).split('\n', 1)
-        print("\nMessage decoded: {0} {1}".format(cmd, arg))
+        print("Message decoded: {0} {1}".format(cmd, arg))
         if cmd == "kinit":
             if do_kinit(arg) == 0:
                 print("kinit successful")
@@ -55,6 +58,7 @@ while True:
                 print("Ticket request failed")
                 conn.send("FAIL")
         elif cmd == "kdestroy":
+            print("Destroying agent ticket cache")
             do_kdestroy()
         else:
             print("Unimplemented command \"{0}\"".format(cmd))
