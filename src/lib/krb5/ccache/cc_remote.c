@@ -195,6 +195,18 @@ rcc_destroy(krb5_context context, krb5_ccache cache)
 {
     rcc_data *data = cache->data;
     krb5_error_code ret;
+    char msg_buf[1024];
+    char len_buf[128];
+    int sock;
+
+    if ((sock = rcc_socket_connect(cache)) <  0) goto cleanup;
+    snprintf(msg_buf, 1024, "kdestroy\n");
+    snprintf(len_buf, 128, "%zd\n", strlen(msg_buf));
+    printf("destroy: sending remote request\n");
+    CHECK_LT0(send(sock, len_buf, strlen(len_buf), 0));
+    CHECK_LT0(send(sock, msg_buf, strlen(msg_buf), 0));
+cleanup:
+    close(sock);
 
     ret = krb5_fcc_ops.destroy(context, data->fcc);
     free(data->residual);
