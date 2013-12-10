@@ -14,7 +14,6 @@ obj/
 testdir/
 testlog
 
-/util/kshow/kshow
 /util/kserialize/kserialize
 /util/kserialize/kunserialize
 
