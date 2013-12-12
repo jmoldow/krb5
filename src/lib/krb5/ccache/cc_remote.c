@@ -89,9 +89,6 @@ rcc_resolve(krb5_context context, krb5_ccache *cache_out, const char *residual)
 
     *cache_out = NULL;
 
-    /*
-    ret = krb5_cc_default(context, &fcc);
-    */
     /* Set fixed cache location so we can use remote as default */
     
     snprintf(storage_name, sizeof(storage_name), 
