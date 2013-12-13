@@ -1,0 +1,3 @@
+[submodule "kerberos-android-ndk"]
+	path = kerberos-android-ndk
+	url = git@github.com:gkanwar/kerberos-android-ndk.git
